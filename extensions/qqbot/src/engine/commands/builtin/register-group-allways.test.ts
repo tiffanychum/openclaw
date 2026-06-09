@@ -163,6 +163,34 @@ describe("bot-group-allways command", () => {
     expect(reply).toContain(testCase.expectedReply);
   });
 
+  it("reads current runtime config instead of the stale account snapshot for sequential toggles", async () => {
+    const writes: OpenClawConfig[] = [];
+    const config = createConfig({
+      allowFrom: ["*"],
+      defaultRequireMention: true,
+    });
+    const account = createAccount();
+    const commandCtx = {
+      account,
+      cfg: config,
+      getMessagePeerId: () => "c2c:TRUSTED_OPENID",
+      getQueueSnapshot: () => queueSnapshot,
+    };
+    installCommandRuntime(config, writes);
+
+    await expect(trySlashCommand(createGroupAllwaysMessage("on"), commandCtx)).resolves.toBe(
+      "handled",
+    );
+    await expect(trySlashCommand(createGroupAllwaysMessage("off"), commandCtx)).resolves.toBe(
+      "handled",
+    );
+
+    expect(writes).toHaveLength(2);
+    expect(getAllwaysConfig(writes[0])?.defaultRequireMention).toBe(false);
+    expect(getAllwaysConfig(writes[1])?.defaultRequireMention).toBe(true);
+    expect(vi.mocked(sendText).mock.calls.at(1)?.[1]).toContain("**off**");
+  });
+
   it("writes to accounts.{accountId}.defaultRequireMention for named accounts", async () => {
     const { result, writes } = await runGroupAllwaysCommand({
       account: createAccount("bot-a"),
